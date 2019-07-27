@@ -1,6 +1,7 @@
 require "./tokenizer/word_tokenizer"
 require "./util/stop_words"
 require "random"
+require "apatite"
 
 module Cadmium
   class TfIdf
@@ -91,6 +92,76 @@ module Cadmium
       end
 
       terms.sort_by { |x| -x[:tfidf] }
+    end
+
+    def lexrank_summary(summary_length, threshold = 0.2)
+      s = documents.keys.join # Full corpus
+      sentences = Cadmium::Util::Sentence.sentences(s)
+      n = sentences.size # Number of sentences
+      # Vector of Similarity Degree for each sentence in the corpus
+      degree = Array.new(n) { 0.00 }
+
+      # Square matrix of dimension n = number of sentences
+      cosine_matrix = Matrix.build(n) do |i, j|
+        if idf_modified_cosine(s[i], s[j]) > threshold
+          degree[i] += 1.0
+          1.0
+        else
+          0.0
+        end
+      end
+
+      # Similarity Matrix
+      similarity_matrix = Matrix.build(n) do |i, j|
+        degree[i] == 0 ? 0.0 : (cosine_matrix[i, j] / degree[i])
+      end
+
+      # Random walk ala PageRank
+      # in the form of a power method
+      results = power_method similarity_matrix, n, 0.85
+
+      # Ugly sleight of hand to return a text based on results
+      # <Array>Results => <Hash>Results => <String>ResultsText
+      h = Hash[@sentences.zip(results)]
+      h.sort_by { |k, v| v }.reverse.first(summary_length).to_h.keys.join(" ")
+    end
+
+    private def sentence_tfidf_sum(sentence) # For lexrank
+      # The Sum of tfidf values for each of the words in a sentence
+      sentence.split(" ")
+        .map { |word| (tf(sentence, word)**2) * idf(word) }
+        .inject(:+)
+    end
+
+    private def idf_modified_cosine(x, y) # For lexrank
+      # Compute the similarity between two sentences x, y
+      # using the modified cosine tfidf formula
+      numerator = (x + " " + y).split(" ")
+        .map { |word| tf(x, word) * tf(y, word) * (idf(word)**2) }
+        .inject(:+)
+
+      denominator = Math.sqrt(sentence_tfidf_sum(x)) * Math.sqrt(sentence_tfidf_sum(y))
+      numerator / denominator
+    end
+
+    def power_method(matrix, n, e) # For lexrank
+      # Accept a stochastic, irreducible & aperiodic matrix M
+      # Accept a matrix size n, an error tolerance e
+      # Output Eigenvector p
+
+      # init values
+      t = 0
+      p = Vector.elements(Array.new(n) { (1.0 / n) * 1 })
+      sigma = 1
+
+      until sigma < e
+        t += 1
+        prev_p = p.clone
+        p = matrix.transpose * prev_p
+        sigma = (p - prev_p).norm
+      end
+
+      p.to_a
     end
 
     private def build_document(text, key)
