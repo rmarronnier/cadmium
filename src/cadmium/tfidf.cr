@@ -95,7 +95,7 @@ module Cadmium
     end
 
     def lexrank_summary(summary_length, threshold = 0.2)
-      s = documents.keys.join # Full corpus
+      s = @documents.keys.join # Full corpus
       sentences = Cadmium::Util::Sentence.sentences(s)
       n = sentences.size # Number of sentences
       # Vector of Similarity Degree for each sentence in the corpus
