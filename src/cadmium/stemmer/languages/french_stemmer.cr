@@ -4,13 +4,52 @@ module Cadmium
   # Reference : https://snowballstem.org/algorithms/french/stemmer.html
   class FrenchStemmer < Stemmer
     @@french_vowels = ['a', 'e', 'i', 'o', 'u', 'y', 'â', 'à', 'ë', 'é', 'ê', 'è', 'ï', 'î', 'ô', 'û', 'ù']
+    @@rv : Range
+    @@r1 : Range
+    @@r2 : Range
 
     def self.stem(token : String) : String
       return token if token.size < 3
+      rv(token)
+      r1(token)
+      r2(token)
       step6(step5(step4(step3(step2b(step2a(step1(token.downcase))))))).to_s
     end
 
     def self.vowel_marking(token : String) : String
+      return token unless ('u'.in_set? token || 'i'.in_set? token || 'y'.in_set? token || 'ë'.in_set? token || 'ï'.in_set? token)
+      token.gsub(/[aeiouyâàëéêèïîôûù](u)[aeiouyâàëéêèïîôûù]/, 'U')
+      token.gsub(/(q)(u)/, 'U')
+      token.gsub(/[aeiouyâàëéêèïîôûù](i)[aeiouyâàëéêèïîôûù]/, 'I')
+      token.gsub(/[aeiouyâàëéêèïîôûù](y)/, 'Y')
+      token.gsub(/(y)[aeiouyâàëéêèïîôûù]/, 'Y')
+      token.gsub('ë', "He")
+      token.gsub('ï', "Hi")
+    end
+
+    def self.rv(token : String) : Range
+      if token.starts_with?(/[aeiouyâàëéêèïîôûù]{2}/)
+        @@rv = 3..
+      else
+        token.each_char_with_index do |char, index|
+          if @@french_vowels.includes?(char) && index > 0 && index < token.size - 2
+            @@rv = index..
+          else
+            @@rv = Range..index # For the linter
+          end
+        end
+      end
+    end
+
+    # def self.r1(token : String) : Range
+    #   if !token.index(/(?![aeiouyâàëéêèïîôûù])[a-z]/).nil?
+    #   @@r1 = Range token.index[1..](/(?![aeiouyâàëéêèïîôûù])[a-z]/)..
+    #   else
+    #     @@r1 = Range token.size
+    #   end
+    # end
+
+    def self.r2(token : String) : Range
     end
 
     def self.step1(token : String) : String
